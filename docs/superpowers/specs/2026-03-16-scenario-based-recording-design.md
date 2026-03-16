@@ -711,70 +711,260 @@ AX 요소를 찾을 때 단일 방법이 아닌 fallback chain을 사용한다:
 
 각 변환된 스텝에는 원시 이벤트의 `timeMs`를 기반으로 타임라인 위치가 할당된다. 이를 통해 ScenarioTrack의 블록이 영상 타임라인과 정확히 동기화된다.
 
-## Phase 2: Replay Engine
+## Phase 2: Replay Engine + Re-rehearse
+
+### Phase 2 Scope
+
+**포함:**
+- ScenarioPlayer — 시나리오 자동 재생 엔진
+- StepExecutor (AXTargetResolver, EventInjector, PathGenerator, TimingController)
+- StateValidator — 실행 전/후 상태 검증
+- RecordingBridge — 기존 녹화 파이프라인 연결
+- Replay HUD — 진행 상황 표시 + 에러 처리 UI
+- Re-rehearse from Step N — 부분 재생 후 리허설 전환
+- Bottom Bar 버튼 활성화 (Replay & Record, Re-rehearse from here)
 
 ### Architecture
 
 ```
-ScenarioPlayer
-├── StepExecutor          — 개별 스텝 실행
-│   ├── AXTargetResolver  — AX 트리에서 타겟 요소 찾기 (fallback chain)
-│   ├── EventInjector     — CGEvent로 마우스/키보드 주입
-│   ├── PathGenerator     — mouse_move 스텝의 경로 생성 (Auto/Waypoints)
-│   └── TimingController  — 스텝 간 타이밍, 대기, 속도 제어
-├── StateValidator        — 실행 전/후 상태 검증
-└── RecordingBridge       — 기존 녹화 파이프라인 연결
+ScenarioPlayer (@MainActor, ObservableObject)
+├── state: PlaybackState (idle/playing/paused/error/completed)
+├── currentStepIndex: Int
+├── currentStep: ScenarioStep?
+├── mode: PlaybackMode (.replayAll / .replayUntilStep(N))
+│
+├── StepExecutor
+│   ├── AXTargetResolver    — Fallback chain: path+title → title → role+position → absoluteCoord
+│   ├── EventInjector       — CGEvent 주입 (mouse/keyboard/scroll), DispatchSourceTimer 10ms 간격
+│   ├── PathGenerator       — Auto: Cubic Bezier (seed = step.id), Waypoints: Catmull-Rom
+│   └── TimingController    — Step 간 durationMs 대기, ease-in-out 속도 프로파일
+│
+├── StateValidator          — 앱 실행 중? 요소 visible? enabled? 예상 외 다이얼로그?
+├── RecordingBridge         — RecordingCoordinator 연결 (녹화 시작/중지)
+└── ReplayHUDController     — NSPanel (floating, excludeWindows), Step 진행/에러 표시
+```
+
+### PlaybackState
+
+```swift
+enum PlaybackState: Equatable {
+    case idle
+    case playing
+    case paused(reason: PauseReason)
+    case error(stepIndex: Int, message: String)
+    case waitingForUser    // Re-rehearse: Step N 도달, 사용자 시작 대기
+    case countdown(Int)    // Re-rehearse: 카운트다운 3..2..1
+    case rehearsing        // Re-rehearse: 사용자 직접 조작 중
+    case completed
+}
+
+enum PauseReason: Equatable {
+    case userRequested     // ESC 또는 Stop
+    case doManually        // 에러 후 사용자 수동 수행 모드
+}
+
+enum PlaybackMode: Equatable {
+    case replayAll                     // Replay & Record: 전체 재생
+    case replayUntilStep(Int)          // Re-rehearse: Step N까지 재생 후 전환
+}
 ```
 
 ### Step Execution Flow
 
 ```
-시나리오 재생 시작
+ScenarioPlayer.start(scenario:, mode:)
     │
-    ├── RecordingCoordinator.startRecording()  (기존 코드 재사용)
+    ├── RecordingBridge: RecordingCoordinator.startRecording() (기존 코드 재사용)
+    ├── Screenize 창 최소화
+    ├── ReplayHUD 표시
     │
     ├── Step 루프:
-    │   1. AXTargetResolver: fallback chain으로 타겟 찾기
-    │   2. StateValidator: 앱 실행 중? 요소 visible? enabled?
-    │   3. mouse_move 스텝이면: PathGenerator로 경로 생성 + EventInjector로 커서 이동
-    │      action 스텝이면: EventInjector로 이벤트 주입
-    │   4. TimingController: durationMs 대기 → 다음 스텝
-    │   (implicit drag group 내에서는 연속 실행, 추가 대기 없음)
+    │   ├── mode == .replayUntilStep(N) && currentIndex == N?
+    │   │   └── YES → state = .waitingForUser → Start 버튼 대기 → 카운트다운 → Rehearsal 전환
+    │   │
+    │   ├── 1. AXTargetResolver: fallback chain으로 타겟 찾기
+    │   ├── 2. StateValidator: 앱 실행 중? 요소 visible? enabled?
+    │   │   └── 실패 → state = .error → HUD에 Skip/DoManually/Stop 표시
+    │   ├── 3. mouse_move → PathGenerator + EventInjector
+    │   │   action step → EventInjector
+    │   ├── 4. TimingController: durationMs 대기 → 다음 스텝
+    │   └── (implicit drag group: 연속 실행, 추가 대기 없음)
     │
-    └── 재생 완료 → RecordingCoordinator.stopRecording()
-        └── video.mp4 + mouse.json (기존과 동일한 출력)
+    ├── 재생 완료 → RecordingBridge: RecordingCoordinator.stopRecording()
+    └── 새 영상으로 VideoEditor 열림 (ScenarioTrack 포함)
 ```
 
 핵심: CGEvent 주입은 시스템 레벨이므로 기존 마우스/키보드 트래킹이 별도 처리 없이 캡처한다. 녹화 파이프라인 수정 불필요.
 
-### Cursor Path Generation (mouse_move 스텝 실행)
-
-**`path: "auto"`**: Cubic Bezier. 이전 스텝 위치에서 다음 스텝 타겟까지.
+### Re-rehearse from Step N Flow
 
 ```
+VideoEditor에서 Step N 선택 + [🔄 Re-rehearse from here] 클릭
+    │
+    ▼
+확인 다이얼로그
+  "Step N부터 다시 리허설합니다.
+   Step 1~(N-1)은 자동 재생되며, Step N부터 직접 조작합니다."
+  [Cancel]  [Start]
+    │
+    ▼ Start
+모든 Screenize 창 최소화
+    │
+    ▼
+녹화 시작 + Step 1~(N-1) Replay 엔진으로 자동 실행
+┌─ Replay HUD ────────────────────────────────────────────┐
+│  ▶ Replaying  Step 2/6  "Foo.swift 클릭"   [■ Stop]     │
+└──────────────────────────────────────────────────────────┘
+    │
+    ▼
+Step N 도달 — Replay 일시정지, 커서/화면 상태 유지
+┌─ Rehearsal Ready HUD ──────────────────────────────────┐
+│  📋 Your turn — Step N "Foo.swift 클릭"                 │
+│              [▶ Start]  [■ Stop]                        │
+└─────────────────────────────────────────────────────────┘
+(사운드 알림으로 전환 시점 전달)
+    │
+    ▼ Start 클릭
+3초 카운트다운 (기존 CountdownPanel 패턴 재사용)
+    │
+    ▼
+ScenarioEventRecorder 활성화
+┌─ Rehearsal HUD ────────────────────────────────────────┐
+│  📋 Rehearsing  ◉ 01:23                    [■ Stop]    │
+└─────────────────────────────────────────────────────────┘
+사용자가 직접 조작하며 리허설 진행
+    │
+    ▼
+Stop
+    │
+    ▼
+하나의 연속된 영상 (Replay 구간 + 카운트다운 + Rehearsal 구간 모두 포함)
+시나리오 병합: Step 1~(N-1) 기존 유지 + Step N~ 새 리허설에서 ScenarioGenerator로 생성
+scenario-raw.json 새로 생성 (Replay 구간 이벤트 + Rehearsal 구간 이벤트)
+    │
+    ▼
+VideoEditor (새 영상 + 병합된 시나리오)
+```
+
+**핵심 설계:**
+- 녹화는 Step 1 시작 시점부터 켜져있으므로 **영상은 하나의 연속 파일** — 이어붙이기 불필요
+- Replay 구간도 녹화되므로 최종 영상에 자연스럽게 포함
+- 카운트다운 중에도 녹화 계속 (나중에 trim 가능)
+- 시나리오 병합: `steps[0..<N]` (기존) + `ScenarioGenerator.generate(from: newRawEvents)` (새 리허설)
+
+**Re-rehearse 버튼 활성 조건:**
+- ScenarioTrack에서 스텝이 선택되어 있을 때만 활성화
+- Step 0 선택 = 전체 Re-rehearse
+
+**Replay 구간 에러 처리:**
+- Step 1~(N-1) 자동 재생 중 에러 발생 시 동일한 에러 HUD 표시 (Skip / Do Manually / Stop)
+- Do Manually 선택 시 해당 스텝만 수동 수행 후 Continue → 나머지 Replay 계속 → Step N에서 Rehearsal 전환
+
+### Replay HUD
+
+NSPanel 기반 (기존 CaptureToolbarPanel과 동일한 패턴):
+- `NSPanel(styleMask: [.borderless, .nonactivatingPanel])`, level `.floating`
+- ScreenCaptureKit `SCContentFilter`의 `excludingWindows`에 추가하여 녹화에서 제외
+- 화면 상단 중앙, 반투명 작은 바
+
+**상태별 HUD 표시:**
+
+| 상태 | HUD 내용 |
+|------|---------|
+| Playing | `▶ Replaying  Step 3/7  "에디터 스크롤"   [■ Stop]` |
+| Error | `⚠ Step 3 실패: "Foo.swift" 요소를 찾을 수 없음  [Skip] [Do Manually] [Stop]` |
+| Do Manually | `✋ Manual mode — Step 3  [Continue] [Stop]` |
+| Waiting for User | `📋 Your turn — Step N "Foo.swift 클릭"  [▶ Start] [■ Stop]` |
+| Countdown | `3... 2... 1...` (전체 화면 오버레이, 기존 CountdownPanel 재사용) |
+| Rehearsing | `📋 Rehearsing  ◉ 01:23  [■ Stop]` |
+
+### EventInjector Implementation
+
+**CGEvent API 사용:**
+
+| 이벤트 | API |
+|--------|-----|
+| 마우스 이동 | `CGEventCreateMouseEvent(.mouseMoved, point, .left)` |
+| 좌클릭 | `CGEventCreateMouseEvent(.leftMouseDown, ...)` + `.leftMouseUp` |
+| 우클릭 | `CGEventCreateMouseEvent(.rightMouseDown, ...)` + `.rightMouseUp` |
+| 더블클릭 | clickCount = 2 on mouseDown/mouseUp pair |
+| 키보드 | `CGEventCreateKeyboardEvent(nil, keyCode, true/false)` + modifier flags |
+| 스크롤 | `CGEventCreateScrollWheelEvent2(nil, .line, 1, deltaY, deltaX)` |
+| 앱 활성화 | `NSWorkspace.shared.open(URL)` 또는 `NSRunningApplication.activate()` |
+
+**주입 방법:** `CGEventPost(.cghidEventTap, event)` — 시스템 레벨 주입.
+
+**이벤트 주입 타이밍:** `DispatchSourceTimer` 10ms 간격. mouse_move 경로를 따라 포인트를 순차 주입. 타이머는 `DispatchQueue(label: "com.screenize.eventInjector", qos: .userInteractive)`에서 실행.
+
+### PathGenerator Implementation
+
+**`path: "auto"` — Deterministic Cubic Bezier:**
+
+```
+seed = step.id.hashValue (deterministic — 같은 시나리오는 항상 같은 경로)
+rng = SeededRandomNumberGenerator(seed: seed)
+
 A = 이전 스텝 위치, B = 다음 스텝 타겟
-C1 = A + (B-A)*0.3 + random perpendicular offset (2~8%)
-C2 = A + (B-A)*0.7 + random perpendicular offset (2~8%)
+perpendicular = normalize(rotate90(B - A))
+offset1 = rng.next(in: 0.02...0.08) * (rng.nextBool() ? 1 : -1)
+offset2 = rng.next(in: 0.02...0.08) * (rng.nextBool() ? 1 : -1)
+C1 = A + (B-A)*0.3 + perpendicular * offset1
+C2 = A + (B-A)*0.7 + perpendicular * offset2
 path = cubicBezier(A, C1, C2, B)
 ```
 
-**`path: { type: "waypoints", points: [...] }`**: [이전 위치, ...waypoints, 다음 타겟]을 Catmull-Rom 스플라인으로 보간. 모든 웨이포인트를 정확히 통과하는 부드러운 곡선.
+**`path: waypoints` — Catmull-Rom Spline:**
 
-**공통 속도 프로파일**: ease-in-out. 이동 시간은 `mouse_move` 스텝의 `durationMs`. CGEventCreateMouseEvent로 10~16ms 간격 주입.
+`[이전 위치, ...waypoints, 다음 타겟]`을 Catmull-Rom 스플라인으로 보간. 모든 웨이포인트를 정확히 통과하는 부드러운 곡선. alpha = 0.5 (centripetal).
+
+**공통 속도 프로파일:** ease-in-out. 포인트 개수 = `durationMs / 10` (10ms 간격). 시간 매핑: `t = easeInOut(linearT)` where `easeInOut(t) = t < 0.5 ? 2t² : 1 - (-2t+2)²/2`.
+
+### AXTargetResolver Implementation
+
+**Fallback Chain (순서대로 시도):**
+
+1. **AX path + axTitle**: 루트(AXApplication)부터 path를 따라 내려가며 각 depth에서 role 매칭. 마지막 요소에서 axTitle 확인. sibling index `[N]` suffix가 있으면 해당 인덱스의 자식 선택.
+
+2. **axTitle only**: 현재 앱의 AX 트리 전체를 BFS로 탐색하며 title이 매칭되는 첫 번째 요소 반환. 최대 탐색 depth: 10, timeout: 500ms.
+
+3. **role + positionHint**: `positionHint`를 절대 좌표로 변환 후 `AXUIElementCopyElementAtPosition`으로 해당 위치의 요소를 가져옴. role이 일치하면 반환.
+
+4. **absoluteCoord (최후 수단)**: 저장된 절대 좌표를 직접 사용. AX 타겟 없이 좌표만으로 이벤트 주입. 해상도/윈도우 위치 변경 시 부정확할 수 있음.
+
+각 단계 timeout: 500ms. 전부 실패 → state = .error, HUD에 Skip/DoManually/Stop 표시.
+
+### StateValidator Implementation
+
+**스텝 실행 전 검증:**
+
+| 검증 항목 | 방법 | 실패 시 |
+|-----------|------|---------|
+| 대상 앱 실행 중 | `NSRunningApplication.runningApplications(withBundleIdentifier:)` | 에러: "앱이 실행되지 않음" |
+| 대상 앱 응답 중 | `NSRunningApplication.isTerminated` == false | timeout 5초 후 에러 |
+| 요소 visible | AXTargetResolver가 찾은 요소의 `kAXPositionAttribute` + `kAXSizeAttribute` 확인 | fallback chain 다음 단계로 |
+| 요소 enabled | `kAXEnabledAttribute` 확인 | 에러: "요소가 비활성화됨" |
+| 예상 외 다이얼로그 | focused window의 `kAXRoleAttribute`가 `AXSheet` 또는 `AXDialog` | 에러: "예상 외 다이얼로그" |
 
 ### Error Handling
 
 | 상황 | 대응 |
 |------|------|
-| 타겟 요소를 못 찾음 | fallback chain 전부 시도 → 실패 시 일시정지 + 사용자 알림 |
+| 타겟 요소를 못 찾음 | fallback chain 전부 시도 → 실패 시 일시정지 + HUD 알림 |
 | 앱이 응답 없음 | timeout (5초) 후 일시정지 |
 | 예상 외 다이얼로그 팝업 | AX로 감지 → 일시정지 + 알림 |
 | 사용자가 중간에 개입 | ESC 키로 즉시 중단, 해당 스텝까지의 녹화 보존 |
 
 일시정지 시 선택지:
 - **Skip** — 현재 스텝 무시, 다음으로
-- **Do Manually** — 사용자가 수동 수행 후 Continue
+- **Do Manually** — 일시정지, 사용자가 수동 수행 후 Continue 버튼으로 다음 스텝부터 재생 계속
 - **Stop** — 중단, 여기까지만 녹화 저장
+
+### Bottom Bar Button Activation (Phase 2)
+
+Phase 1에서 disabled placeholder로 있던 Bottom Bar 버튼들을 활성화:
+
+- **[▶ Replay & Record]**: 항상 활성 (시나리오가 있을 때). 클릭 시 확인 다이얼로그 → ScenarioPlayer.start(mode: .replayAll)
+- **[🔄 Re-rehearse from here]**: ScenarioTrack에서 스텝이 선택되어 있을 때만 활성. 클릭 시 확인 다이얼로그 → ScenarioPlayer.start(mode: .replayUntilStep(selectedIndex))
 
 ### macOS Permissions
 
