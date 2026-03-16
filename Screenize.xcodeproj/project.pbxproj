@@ -211,6 +211,19 @@
 		FE0000B3296A0001 /* PreviewEngine+Timeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000B3296A0001 /* PreviewEngine+Timeline.swift */; };
 		FE0000C1296A0001 /* ExportEngine+VideoExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000C1296A0001 /* ExportEngine+VideoExport.swift */; };
 		FE0000C2296A0001 /* ExportEngine+GIFExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000C2296A0001 /* ExportEngine+GIFExport.swift */; };
+		BA000001296A0001 /* CoordinateScenarioHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA100001296A0001 /* CoordinateScenarioHelpersTests.swift */; };
+		BB000001296A0001 /* ScenarioModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB100001296A0001 /* ScenarioModels.swift */; };
+		BB000002296A0001 /* ScenarioModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB100002296A0001 /* ScenarioModelsTests.swift */; };
+		BC000001296A0001 /* WaypointExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC100001296A0001 /* WaypointExtractor.swift */; };
+		BC000002296A0001 /* WaypointExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC100002296A0001 /* WaypointExtractorTests.swift */; };
+		BD000001296A0001 /* ScenarioEventRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD100001296A0001 /* ScenarioEventRecorder.swift */; };
+		BD000002296A0001 /* ScenarioEventRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD100002296A0001 /* ScenarioEventRecorderTests.swift */; };
+		BE000001296A0001 /* ScenarioGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE100001296A0001 /* ScenarioGenerator.swift */; };
+		BE000002296A0001 /* ScenarioGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE100002296A0001 /* ScenarioGeneratorTests.swift */; };
+		BF000001296A0001 /* ScenarioFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF100001296A0001 /* ScenarioFileManager.swift */; };
+		B6000001296A0001 /* ScenarioStepBlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6100001296A0001 /* ScenarioStepBlockView.swift */; };
+		B7000001296A0001 /* ScenarioTrackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7100001296A0001 /* ScenarioTrackView.swift */; };
+		FA000001296A0001 /* ScenarioInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA100001296A0001 /* ScenarioInspectorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -430,6 +443,19 @@
 		FE1000B3296A0001 /* PreviewEngine+Timeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreviewEngine+Timeline.swift"; sourceTree = "<group>"; };
 		FE1000C1296A0001 /* ExportEngine+VideoExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportEngine+VideoExport.swift"; sourceTree = "<group>"; };
 		FE1000C2296A0001 /* ExportEngine+GIFExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportEngine+GIFExport.swift"; sourceTree = "<group>"; };
+		BA100001296A0001 /* CoordinateScenarioHelpersTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinateScenarioHelpersTests.swift; sourceTree = "<group>"; };
+		BB100001296A0001 /* ScenarioModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioModels.swift; sourceTree = "<group>"; };
+		BB100002296A0001 /* ScenarioModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioModelsTests.swift; sourceTree = "<group>"; };
+		BC100001296A0001 /* WaypointExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointExtractor.swift; sourceTree = "<group>"; };
+		BC100002296A0001 /* WaypointExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaypointExtractorTests.swift; sourceTree = "<group>"; };
+		BD100001296A0001 /* ScenarioEventRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioEventRecorder.swift; sourceTree = "<group>"; };
+		BD100002296A0001 /* ScenarioEventRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioEventRecorderTests.swift; sourceTree = "<group>"; };
+		BE100001296A0001 /* ScenarioGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioGenerator.swift; sourceTree = "<group>"; };
+		BE100002296A0001 /* ScenarioGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioGeneratorTests.swift; sourceTree = "<group>"; };
+		BF100001296A0001 /* ScenarioFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioFileManager.swift; sourceTree = "<group>"; };
+		B6100001296A0001 /* ScenarioStepBlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioStepBlockView.swift; sourceTree = "<group>"; };
+		B7100001296A0001 /* ScenarioTrackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioTrackView.swift; sourceTree = "<group>"; };
+		FA100001296A0001 /* ScenarioInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenarioInspectorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -511,8 +537,41 @@
 				B5200001296A0001 /* Timeline */,
 				D2300001296A0001 /* Project */,
 				D2300002296A0001 /* Render */,
+				BA200001296A0001 /* Coordinates */,
+				BB200002296A0001 /* Scenario */,
 			);
 			path = ScreenizeTests;
+			sourceTree = "<group>";
+		};
+		BA200001296A0001 /* Coordinates */ = {
+			isa = PBXGroup;
+			children = (
+				BA100001296A0001 /* CoordinateScenarioHelpersTests.swift */,
+			);
+			path = Coordinates;
+			sourceTree = "<group>";
+		};
+		BB200001296A0001 /* Scenario */ = {
+			isa = PBXGroup;
+			children = (
+				BB100001296A0001 /* ScenarioModels.swift */,
+				BE100001296A0001 /* ScenarioGenerator.swift */,
+				BC100001296A0001 /* WaypointExtractor.swift */,
+				BD100001296A0001 /* ScenarioEventRecorder.swift */,
+				BF100001296A0001 /* ScenarioFileManager.swift */,
+			);
+			path = Scenario;
+			sourceTree = "<group>";
+		};
+		BB200002296A0001 /* Scenario */ = {
+			isa = PBXGroup;
+			children = (
+				BB100002296A0001 /* ScenarioModelsTests.swift */,
+				BE100002296A0001 /* ScenarioGeneratorTests.swift */,
+				BC100002296A0001 /* WaypointExtractorTests.swift */,
+				BD100002296A0001 /* ScenarioEventRecorderTests.swift */,
+			);
+			path = Scenario;
 			sourceTree = "<group>";
 		};
 		AD200021296A0001 /* Helpers */ = {
@@ -714,6 +773,7 @@
 				F2000040296A0001 /* Views */,
 				F2000050296A0001 /* ViewModels */,
 				F2000060296A0001 /* Generators */,
+				BB200001296A0001 /* Scenario */,
 				F1000090296A0001 /* Assets.xcassets */,
 				F1000091296A0001 /* Screenize.entitlements */,
 				1A210DB0FB901E8551815099 /* Analysis */,
@@ -812,6 +872,16 @@
 			path = Render;
 			sourceTree = "<group>";
 		};
+		B6200001296A0001 /* Scenario */ = {
+			isa = PBXGroup;
+			children = (
+				B6100001296A0001 /* ScenarioStepBlockView.swift */,
+				B7100001296A0001 /* ScenarioTrackView.swift */,
+				FA100001296A0001 /* ScenarioInspectorView.swift */,
+			);
+			path = Scenario;
+			sourceTree = "<group>";
+		};
 		F2000040296A0001 /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -820,6 +890,7 @@
 				F20000F0296A0001 /* Recording */,
 				A12000A0296A0001 /* Onboarding */,
 				DD200001296A0001 /* Settings */,
+				B6200001296A0001 /* Scenario */,
 				F1000050296A0001 /* PreviewView.swift */,
 				CA100002296A0001 /* MetalPreviewView.swift */,
 				F1000051296A0001 /* ExportView.swift */,
@@ -1139,6 +1210,11 @@
 				A8000001296A0001 /* SegmentSpringSimulatorTests.swift in Sources */,
 				A9000001296A0001 /* SegmentPlannerTests.swift in Sources */,
 				EC000002296A0001 /* SpringSimulationCacheTests.swift in Sources */,
+				BA000001296A0001 /* CoordinateScenarioHelpersTests.swift in Sources */,
+				BB000002296A0001 /* ScenarioModelsTests.swift in Sources */,
+				BC000002296A0001 /* WaypointExtractorTests.swift in Sources */,
+				BD000002296A0001 /* ScenarioEventRecorderTests.swift in Sources */,
+				BE000002296A0001 /* ScenarioGeneratorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1322,6 +1398,14 @@
 				DA000001296A0001 /* MicroTracker.swift in Sources */,
 				A4000001296A0001 /* DeadZoneTarget.swift in Sources */,
 				A5000001296A0001 /* AdaptiveResponse.swift in Sources */,
+				BB000001296A0001 /* ScenarioModels.swift in Sources */,
+				BC000001296A0001 /* WaypointExtractor.swift in Sources */,
+				BD000001296A0001 /* ScenarioEventRecorder.swift in Sources */,
+				BE000001296A0001 /* ScenarioGenerator.swift in Sources */,
+				BF000001296A0001 /* ScenarioFileManager.swift in Sources */,
+				B6000001296A0001 /* ScenarioStepBlockView.swift in Sources */,
+				B7000001296A0001 /* ScenarioTrackView.swift in Sources */,
+				FA000001296A0001 /* ScenarioInspectorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -418,6 +418,20 @@ struct CoordinateConverter {
     }
 }
 
+// MARK: - CG Normalized ↔ NormalizedPoint
+
+extension CoordinateConverter {
+    /// Convert CG normalized (top-left origin, 0-1) to NormalizedPoint (bottom-left origin, 0-1)
+    static func cgNormalizedToNormalized(_ cgPoint: CGPoint) -> NormalizedPoint {
+        NormalizedPoint(x: cgPoint.x, y: 1.0 - cgPoint.y)
+    }
+
+    /// Convert NormalizedPoint (bottom-left origin, 0-1) to CG normalized (top-left origin, 0-1)
+    static func normalizedToCGNormalized(_ point: NormalizedPoint) -> CGPoint {
+        CGPoint(x: point.x, y: 1.0 - point.y)
+    }
+}
+
 // MARK: - Helper
 
 private func clamp(_ value: CGFloat, min minValue: CGFloat, max maxValue: CGFloat) -> CGFloat {

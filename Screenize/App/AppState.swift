@@ -73,6 +73,10 @@ final class AppState: ObservableObject {
         get { recording.lastSystemAudioURL }
         set { recording.lastSystemAudioURL = newValue }
     }
+    var lastScenarioRawEvents: ScenarioRawEvents? {
+        get { recording.lastScenarioRawEvents }
+        set { recording.lastScenarioRawEvents = newValue }
+    }
     var recordingCoordinator: RecordingCoordinator? {
         recording.recordingCoordinator
     }

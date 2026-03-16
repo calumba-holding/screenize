@@ -89,6 +89,34 @@ struct EditorMainView: View {
                     trimEnd: viewModel.trimEndBinding,
                     onTrimChange: { start, end in
                         viewModel.setTrimRange(start: start, end: end)
+                    },
+                    scenario: viewModel.scenario,
+                    selectedStepId: $viewModel.selectedStepId,
+                    onStepSelect: { id in
+                        viewModel.selectStep(id)
+                    },
+                    onStepDelete: { id in
+                        viewModel.deleteStep(id)
+                    },
+                    onStepDuplicate: { id in
+                        viewModel.duplicateStep(id)
+                    },
+                    onStepMove: { id, fromIndex, toIndex in
+                        viewModel.moveStep(fromIndex: fromIndex, toIndex: toIndex)
+                    },
+                    onStepResize: { id, newDurationMs in
+                        if var step = viewModel.scenario?.steps.first(where: { $0.id == id }) {
+                            step.durationMs = newDurationMs
+                            viewModel.updateStep(step)
+                        }
+                    },
+                    onStepAdd: { stepType, index in
+                        let newStep = ScenarioStep(
+                            type: stepType,
+                            description: stepType.rawValue,
+                            durationMs: 1000
+                        )
+                        viewModel.addStep(newStep, at: index)
                     }
                 )
                 .frame(height: 224)
@@ -105,6 +133,18 @@ struct EditorMainView: View {
                 },
                 onDeleteSegment: { id, trackType in
                     viewModel.deleteSegment(id, from: trackType)
+                },
+                scenario: viewModel.scenario,
+                selectedStepId: $viewModel.selectedStepId,
+                scenarioHasRawEvents: viewModel.scenarioRawEvents != nil,
+                onStepUpdate: { step in
+                    viewModel.updateStep(step)
+                },
+                onStepDelete: { id in
+                    viewModel.deleteStep(id)
+                },
+                onGenerateWaypoints: { id, hz in
+                    viewModel.generateWaypoints(forStepId: id, hz: hz)
                 }
             )
         }
@@ -383,6 +423,11 @@ struct EditorMainView: View {
 
             // Delete (backspace) = keyCode 51, Forward Delete = keyCode 117
             if event.keyCode == 51 || event.keyCode == 117 {
+                // If a scenario step is selected, delete it
+                if let stepId = viewModel.selectedStepId {
+                    viewModel.deleteStep(stepId)
+                    return nil
+                }
                 if !viewModel.selection.isEmpty {
                     let selected = viewModel.selection.segments
                     for ident in selected {
@@ -390,6 +435,17 @@ struct EditorMainView: View {
                     }
                     return nil
                 }
+                return event
+            }
+
+            // Cmd+D = duplicate
+            if event.keyCode == 2 && hasCommand {
+                // If a scenario step is selected, duplicate it
+                if let stepId = viewModel.selectedStepId {
+                    viewModel.duplicateStep(stepId)
+                    return nil
+                }
+                // Otherwise fall through to existing duplicate segments notification
                 return event
             }
 

@@ -22,6 +22,7 @@ final class RecordingState: ObservableObject {
     var lastProcessTimeStartMs: Int64 = 0
     var lastMicAudioURL: URL?
     var lastSystemAudioURL: URL?
+    var lastScenarioRawEvents: ScenarioRawEvents?
 
     // MARK: - Managers
 
@@ -52,6 +53,7 @@ final class RecordingState: ObservableObject {
         }
 
         let coordinator = RecordingCoordinator()
+        coordinator.isRehearsalMode = (captureSettings.recordingMode == .rehearsal)
         self.recordingCoordinator = coordinator
 
         try await coordinator.startRecording(
@@ -88,6 +90,7 @@ final class RecordingState: ObservableObject {
             lastMouseRecording = coordinator.lastMouseRecording
             lastMicAudioURL = coordinator.lastMicAudioURL
             lastSystemAudioURL = coordinator.lastSystemAudioURL
+            lastScenarioRawEvents = coordinator.lastScenarioRawEvents
         }
 
         recordingCoordinator = nil

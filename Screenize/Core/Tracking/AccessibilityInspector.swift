@@ -342,6 +342,135 @@ extension AccessibilityInspector {
     }
 }
 
+// MARK: - Scenario Element Info
+
+/// Extended element info for scenario recording, including AX path and extra properties
+struct ScenarioElementInfo {
+    let element: UIElementInfo
+    let path: [String]          // e.g., ["AXWindow", "AXSplitGroup", "AXOutline"]
+    let axValue: String?
+    let axDescription: String?
+}
+
+// MARK: - Scenario Inspection
+
+extension AccessibilityInspector {
+
+    /// Traverse the parent chain from an element up to AXWindow, collecting role strings.
+    /// Returns an array like ["AXWindow", "AXSplitGroup", "AXOutline"] (root to leaf).
+    /// Appends a 0-based index for siblings with the same role (e.g., "AXButton[2]").
+    /// Max depth: 15.
+    func parentPath(for element: AXUIElement) -> [String] {
+        var roles: [String] = []  // Collected bottom-up (leaf to root), reversed at the end
+        var currentElement = element
+        let maxDepth = 15
+
+        for _ in 0..<maxDepth {
+            // Get the role of the current element
+            var roleRef: CFTypeRef?
+            AXUIElementCopyAttributeValue(currentElement, kAXRoleAttribute as CFString, &roleRef)
+            let role = (roleRef as? String) ?? "Unknown"
+
+            // Compute sibling disambiguation index (if parent has multiple children with same role)
+            var disambiguatedRole = role
+            var parentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(currentElement, kAXParentAttribute as CFString, &parentRef) == .success,
+               let parent = parentRef,
+               CFGetTypeID(parent) == AXUIElementGetTypeID() {
+                // swiftlint:disable:next force_cast
+                let parentElement = parent as! AXUIElement
+
+                // Fetch siblings (parent's children)
+                var childrenRef: CFTypeRef?
+                if AXUIElementCopyAttributeValue(parentElement, kAXChildrenAttribute as CFString, &childrenRef) == .success,
+                   let childrenArray = childrenRef as? [AXUIElement] {
+                    // Filter to siblings sharing the same role
+                    let sameRoleSiblings = childrenArray.filter { sibling in
+                        var siblingRoleRef: CFTypeRef?
+                        AXUIElementCopyAttributeValue(sibling, kAXRoleAttribute as CFString, &siblingRoleRef)
+                        return (siblingRoleRef as? String) == role
+                    }
+
+                    // Only append index when there are multiple siblings with the same role
+                    if sameRoleSiblings.count > 1 {
+                        // Find this element's position among same-role siblings
+                        let index = sameRoleSiblings.firstIndex { sibling in
+                            CFEqual(sibling, currentElement)
+                        } ?? 0
+                        disambiguatedRole = "\(role)[\(index)]"
+                    }
+                }
+            }
+
+            roles.append(disambiguatedRole)
+
+            // Stop at AXWindow — it is the root of a window hierarchy
+            if role == "AXWindow" {
+                break
+            }
+
+            // Walk up to parent
+            var nextParentRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(currentElement, kAXParentAttribute as CFString, &nextParentRef) == .success,
+                  let nextParent = nextParentRef,
+                  CFGetTypeID(nextParent) == AXUIElementGetTypeID() else {
+                break
+            }
+            // swiftlint:disable:next force_cast
+            currentElement = nextParent as! AXUIElement
+        }
+
+        // Roles were collected leaf-to-root; reverse to get root-to-leaf order
+        return roles.reversed()
+    }
+
+    /// Get element info with a full AX path and extra properties for scenario recording.
+    /// - Parameter screenPoint: Screen coordinate (top-left origin, CG coordinate space)
+    /// - Returns: ScenarioElementInfo (nil when unavailable or permission denied)
+    func scenarioElementAt(screenPoint: CGPoint) -> ScenarioElementInfo? {
+        guard Self.hasPermission else {
+            return nil
+        }
+
+        let systemElement = AXUIElementCreateSystemWide()
+        var axElement: AXUIElement?
+
+        let result = AXUIElementCopyElementAtPosition(
+            systemElement,
+            Float(screenPoint.x),
+            Float(screenPoint.y),
+            &axElement
+        )
+
+        guard result == .success, let axElement = axElement else {
+            return nil
+        }
+
+        guard let elementInfo = extractElementInfo(from: axElement) else {
+            return nil
+        }
+
+        // AXValue — plain string value of the element (e.g., checkbox state, text content)
+        var axValueRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(axElement, kAXValueAttribute as CFString, &axValueRef)
+        let axValue = axValueRef as? String
+
+        // AXDescription — accessible description of the element
+        var axDescriptionRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(axElement, kAXDescriptionAttribute as CFString, &axDescriptionRef)
+        let axDescription = axDescriptionRef as? String
+
+        let path = parentPath(for: axElement)
+
+        return ScenarioElementInfo(
+            element: elementInfo,
+            path: path,
+            axValue: axValue,
+            axDescription: axDescription
+        )
+    }
+}
+
 // MARK: - Dynamic Zoom Calculation
 
 extension UIElementInfo {

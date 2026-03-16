@@ -36,6 +36,15 @@ final class EditorViewModel: ObservableObject {
     /// URL of the project file
     var projectURL: URL?
 
+    /// Scenario model (runtime-only, loaded from separate file)
+    @Published var scenario: Scenario?
+
+    /// ID of the currently selected scenario step
+    @Published var selectedStepId: UUID?
+
+    /// Raw events for the scenario (runtime-only, loaded from separate file)
+    @Published var scenarioRawEvents: ScenarioRawEvents?
+
     // MARK: - Engines
 
     /// Preview engine
@@ -160,6 +169,8 @@ final class EditorViewModel: ObservableObject {
     init(project: ScreenizeProject, projectURL: URL? = nil) {
         self.project = project
         self.projectURL = projectURL
+        self.scenario = project.scenario
+        self.scenarioRawEvents = project.scenarioRawEvents
         self.previewEngine = PreviewEngine(previewScale: 0.5)
         self.exportEngine = ExportEngine()
         self.previewEngine.springCache = springCache
@@ -226,7 +237,8 @@ final class EditorViewModel: ObservableObject {
         EditorSnapshot(
             timeline: project.timeline,
             renderSettings: project.renderSettings,
-            selection: selection
+            selection: selection,
+            scenario: scenario
         )
     }
 
@@ -267,6 +279,8 @@ final class EditorViewModel: ObservableObject {
         project.timeline = snapshot.timeline
         project.renderSettings = snapshot.renderSettings
         selection = snapshot.selection
+        scenario = snapshot.scenario
+        project.scenario = snapshot.scenario
         hasUnsavedChanges = true
         invalidatePreviewCache()
         updateRenderSettings()
@@ -454,6 +468,133 @@ final class EditorViewModel: ObservableObject {
         invalidateSpringCache()
         populateSpringCacheIfNeeded()
         invalidatePreviewCache()
+    }
+
+    // MARK: - Scenario Binding
+
+    /// Two-way binding for the scenario, keeping project in sync
+    var scenarioBinding: Binding<Scenario?> {
+        Binding(
+            get: { self.scenario },
+            set: { newValue in
+                self.scenario = newValue
+                self.project.scenario = newValue
+                self.hasUnsavedChanges = true
+            }
+        )
+    }
+
+    // MARK: - Scenario Step Operations
+
+    /// Select a step and seek the preview to its start time
+    func selectStep(_ id: UUID) {
+        selectedStepId = id
+        if let scenario, let index = scenario.steps.firstIndex(where: { $0.id == id }) {
+            let time = scenario.startTime(forStepAt: index)
+            Task { await seek(to: time) }
+        }
+    }
+
+    /// Clear the current step selection
+    func clearStepSelection() {
+        selectedStepId = nil
+    }
+
+    /// Delete a step by ID
+    func deleteStep(_ id: UUID) {
+        guard var scenario else { return }
+        saveUndoSnapshot()
+        scenario.steps.removeAll { $0.id == id }
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
+        if selectedStepId == id { selectedStepId = nil }
+    }
+
+    /// Duplicate a step, inserting the copy immediately after the original
+    func duplicateStep(_ id: UUID) {
+        guard var scenario else { return }
+        guard let index = scenario.steps.firstIndex(where: { $0.id == id }) else { return }
+        saveUndoSnapshot()
+        let original = scenario.steps[index]
+        let copy = ScenarioStep(
+            id: UUID(),
+            type: original.type,
+            description: original.description,
+            durationMs: original.durationMs,
+            target: original.target,
+            path: original.path,
+            rawTimeRange: original.rawTimeRange,
+            app: original.app,
+            keyCombo: original.keyCombo,
+            content: original.content,
+            typingSpeedMs: original.typingSpeedMs,
+            direction: original.direction,
+            amount: original.amount
+        )
+        scenario.steps.insert(copy, at: index + 1)
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
+    }
+
+    /// Move a step from one index to another
+    func moveStep(fromIndex: Int, toIndex: Int) {
+        guard var scenario else { return }
+        guard fromIndex != toIndex,
+              fromIndex >= 0, fromIndex < scenario.steps.count,
+              toIndex >= 0, toIndex < scenario.steps.count else { return }
+        saveUndoSnapshot()
+        let step = scenario.steps.remove(at: fromIndex)
+        scenario.steps.insert(step, at: toIndex)
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
+    }
+
+    /// Insert a step at the given index (clamped to valid range)
+    func addStep(_ step: ScenarioStep, at index: Int) {
+        guard var scenario else { return }
+        saveUndoSnapshot()
+        let clampedIndex = min(max(index, 0), scenario.steps.count)
+        scenario.steps.insert(step, at: clampedIndex)
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
+    }
+
+    /// Replace a step (matched by ID) with an updated version.
+    /// Uses debounced undo snapshots to coalesce rapid edits (e.g. text field keystrokes).
+    func updateStep(_ step: ScenarioStep) {
+        guard var scenario else { return }
+        guard let index = scenario.steps.firstIndex(where: { $0.id == step.id }) else { return }
+        saveBindingUndoSnapshot()
+        scenario.steps[index] = step
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
+    }
+
+    // MARK: - Scenario Waypoint Generation
+
+    /// Extract waypoints from raw events for the given step and assign them to its path
+    func generateWaypoints(forStepId id: UUID, hz: Int) {
+        guard let rawEvents = scenarioRawEvents,
+              var scenario,
+              let stepIndex = scenario.steps.firstIndex(where: { $0.id == id }),
+              let timeRange = scenario.steps[stepIndex].rawTimeRange else { return }
+
+        saveUndoSnapshot()
+        let points = WaypointExtractor.extract(
+            from: rawEvents,
+            timeRange: timeRange,
+            hz: hz,
+            captureArea: rawEvents.captureArea
+        )
+        scenario.steps[stepIndex].path = .waypoints(points: points)
+        self.scenario = scenario
+        self.project.scenario = scenario
+        self.hasUnsavedChanges = true
     }
 
 }

@@ -37,6 +37,11 @@ final class RecordingCoordinator: ObservableObject {
     private(set) var lastMicAudioURL: URL?
     private(set) var lastSystemAudioURL: URL?
 
+    // Rehearsal mode
+    var isRehearsalMode: Bool = false
+    private var scenarioEventRecorder: ScenarioEventRecorder?
+    private(set) var lastScenarioRawEvents: ScenarioRawEvents?
+
     private let ciContext = CIContext(options: [
         .useSoftwareRenderer: false,
         .highQualityDownsample: false,
@@ -130,6 +135,12 @@ final class RecordingCoordinator: ObservableObject {
             captureFrameRate: captureConfig.frameRate
         )
 
+        // Start scenario event recorder in rehearsal mode
+        if isRehearsalMode {
+            scenarioEventRecorder = ScenarioEventRecorder()
+            scenarioEventRecorder?.startRecording(captureArea: captureBounds)
+        }
+
         // Start microphone recording if enabled
         if isMicrophoneEnabled {
             let micRecorder = MicrophoneRecorder()
@@ -173,6 +184,12 @@ final class RecordingCoordinator: ObservableObject {
         }
         mouseDataRecorder = nil
 
+        // Collect scenario raw events from rehearsal mode
+        if isRehearsalMode, let recorder = scenarioEventRecorder {
+            lastScenarioRawEvents = recorder.stopRecording()
+        }
+        scenarioEventRecorder = nil
+
         // Stop microphone recording
         if let micURL = await microphoneRecorder?.stopRecording() {
             lastMicAudioURL = micURL
@@ -204,6 +221,7 @@ final class RecordingCoordinator: ObservableObject {
         stopDurationTimer()
         mouseDataRecorder?.pauseRecording()
         microphoneRecorder?.pause()
+        scenarioEventRecorder?.pauseRecording()
     }
 
     func resumeRecording() {
@@ -213,6 +231,7 @@ final class RecordingCoordinator: ObservableObject {
         startDurationTimer()
         mouseDataRecorder?.resumeRecording()
         microphoneRecorder?.resume()
+        scenarioEventRecorder?.resumeRecording()
     }
 
     /// Generate the microphone audio sidecar URL from the video output URL.

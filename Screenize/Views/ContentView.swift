@@ -161,6 +161,8 @@ struct ContentView: View {
                 return
             }
 
+            let scenarioRawEvents = appState.lastScenarioRawEvents
+
             let packageInfo = try PackageManager.shared.createPackageV4(
                 name: videoName,
                 videoURL: videoURL,
@@ -171,16 +173,20 @@ struct ContentView: View {
                 in: parentDirectory,
                 recordingStartDate: appState.lastRecordingStartDate ?? Date(),
                 processTimeStartMs: appState.lastProcessTimeStartMs,
-                appVersion: appVersion
+                appVersion: appVersion,
+                scenarioRawEvents: scenarioRawEvents
             )
 
             appState.lastMouseRecording = nil
             appState.lastMicAudioURL = nil
             appState.lastSystemAudioURL = nil
+            appState.lastScenarioRawEvents = nil
 
-            guard let project = await appState.createProject(packageInfo: packageInfo) else {
-                return
-            }
+            let project = try await ProjectCreator.createFromRecording(
+                packageInfo: packageInfo,
+                captureMeta: captureMeta,
+                scenarioRawEvents: scenarioRawEvents
+            )
 
             let packageURL = try await projectManager.save(project, to: packageInfo.packageURL)
 
